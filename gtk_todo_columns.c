@@ -38,7 +38,7 @@ TodoItem* todo_item_new(const gchar* name)
   item->name = g_strdup(name);
   item->completed = FALSE;
   item->id = unique_id;
-  item->children = g_list_store_new(TODO_TYPE_ITEM);
+  item->children = g_list_store_new(TODO_TYPE_ITEM); // Si no se hace esto no se aactualiza la lista.
   item->root = NULL;
   unique_id++;
   return item;
@@ -106,6 +106,13 @@ static void signal_remove_item(GtkWidget* button, GtkSingleSelection* selection)
 // --------------------------------------
 // BEGIN::Column1: COMPLETED
 // --------------------------------------
+static void signal_toggle_completed(GtkCheckButton* self, GtkListItem* list_item)
+{
+  GtkTreeListRow* row_item = gtk_list_item_get_item(list_item);
+  TodoItem* item = gtk_tree_list_row_get_item(row_item);
+  item->completed = gtk_check_button_get_active(self);
+}
+
 static void factory_setup_completed(GtkSignalListItemFactory* factory, GtkListItem* list_item, gpointer data)
 {
   GtkWidget* checkbox, * expander;
@@ -114,6 +121,7 @@ static void factory_setup_completed(GtkSignalListItemFactory* factory, GtkListIt
   gtk_list_item_set_child(GTK_LIST_ITEM(list_item), expander);
 
   checkbox = gtk_check_button_new();
+  g_signal_connect(checkbox, "toggled", G_CALLBACK(signal_toggle_completed), list_item);
   gtk_tree_expander_set_child(GTK_TREE_EXPANDER(expander), checkbox);
 }
 
@@ -125,11 +133,15 @@ static void factory_bind_completed(GtkSignalListItemFactory* factory, GtkListIte
   row_item = gtk_list_item_get_item(list_item);
   TodoItem* item = gtk_tree_list_row_get_item(row_item);
 
+  gboolean is_groups = (g_list_model_get_n_items(G_LIST_MODEL(item->children)) != 0);
+
   expander = gtk_list_item_get_child(list_item);
   gtk_tree_expander_set_list_row(GTK_TREE_EXPANDER(expander), row_item);
+  gtk_tree_expander_set_hide_expander(GTK_TREE_EXPANDER(expander), !is_groups);
 
   child = gtk_tree_expander_get_child(GTK_TREE_EXPANDER(expander));
   gtk_check_button_set_active(GTK_CHECK_BUTTON(child), item->completed);
+  gtk_widget_set_visible(child, !is_groups);
 }
 // --------------------------------------
 // END::Column1: COMPLETED
@@ -156,8 +168,11 @@ static void factory_bind_name(GtkSignalListItemFactory* factory, GtkListItem* li
   row_item = gtk_list_item_get_item(list_item);
   TodoItem* item = gtk_tree_list_row_get_item(row_item);
 
+  gboolean is_groups = (g_list_model_get_n_items(G_LIST_MODEL(item->children)) != 0);
+
   GtkWidget* label = gtk_list_item_get_child(GTK_LIST_ITEM(list_item));
-  gtk_label_set_label(GTK_LABEL(label), item->name);
+  gchar* name = g_strdup_printf((is_groups ? "<b>%s</b>" : "%s"), item->name);
+  gtk_label_set_label(GTK_LABEL(label), name);
 }
 // --------------------------------------
 // END::Column2: NAME
@@ -223,7 +238,7 @@ static void activate(GtkApplication* app, gpointer user_data)
       gtk_box_append(GTK_BOX(vbox_entry), btn_remove);
 
       entry = gtk_entry_new();
-      gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Escribe");
+      gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Write todo");
       gtk_widget_set_hexpand(entry, TRUE);
       gtk_box_append(GTK_BOX(vbox_entry), entry);
 
